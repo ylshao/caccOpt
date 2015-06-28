@@ -1,5 +1,4 @@
-
-clear all
+% clear all
 % clc
 %% Engine Map
 wEngMap=[1000 1250 1500 1750 2000 2250 2500 2750 3000 3250 3500 4000]*2*pi/60;  % (rad/s), speed range of the engine
@@ -90,11 +89,10 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 lambda1Init = 0;
 lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
 LAMBDA3 = -227.036499568364;
-LAMBDA4 = 0;
+LAMBDA4 = 0.01;
 
 % choose the method to solve the acceleration 
 METHOD = 4;
-    
     
 %% get the initial acceleration
 % get polynomial for solving aVeh
@@ -116,6 +114,14 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
     getHamil(lambda1Init, lambda2Init, LAMBDA3, LAMBDA4, vPreInit, ...
     vVehInit, aVehInit, pBattInit, distFollowInit, fuelConsFcn, distCstrFcn);
 
+%
+
+% Sample Wv from 0 - 60 mph 
+Wv = linspace(0,60,20)*1.61/3.6/R_TIRE;
+% Sample Av from -15 - 15 mph/s 
+Av = linspace(-10,10,30)*1.61/3.6/R_TIRE;
+[~, vVehSpan, aVehMaxSpan] = getMaxWDotVeh(tEngMap, wEngMap, Wv, Av);
+interp1(vVehSpan, aVehMaxSpan, vVehInit)
 %% start simulation of the preceding vehicle performance
 tic;
 DT = 0.5;
@@ -189,6 +195,8 @@ for i = 1:SIMU_STEPS
             aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
         case 4
             % METHOD 4: find correct aVeh through Hamiltonian
+            aVehPolyRealRoots = aVehPolyRealRoots(...
+                aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
             ROOTS_NUM = numel(aVehPolyRealRoots);
             if ROOTS_NUM == 1
                 aVeh(i+1) = aVehPolyRealRoots; 
@@ -243,6 +251,33 @@ for i = 1:SIMU_STEPS
 end
 toc;
 
+%% Save results as a struct
+SimuResult = struct;
+% preceding vehicle
+SimuResult.vPre = vPre;
+SimuResult.aPre = aPre;
+% states
+SimuResult.distFollow = distFollow;
+SimuResult.vVeh = vVeh;
+SimuResult.soc = soc;
+% costates
+SimuResult.lambda1 = lambda1;
+SimuResult.lambda2 = lambda2;
+% inputs
+SimuResult.aVeh = aVeh;
+SimuResult.pBatt = pBatt;
+% vehicle states
+SimuResult.wVeh = wVeh;
+SimuResult.wDotVeh = wDotVeh;
+SimuResult.tVeh = tVeh;
+% hamiltonian
+SimuResult.hamilTraj = hamilTraj;
+
+%%
+figure;
+plot(timeSimu, [sign(vPre-vVeh) sign(lambda1)])
+legend('sign vel', 'sign \lambda_1')
+ylim([-1.2, 1.2])
 %% plotting
 
 SUB_ALIGN = '24';

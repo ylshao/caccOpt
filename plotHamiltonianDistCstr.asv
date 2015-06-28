@@ -152,7 +152,7 @@ hamilPlot = nan(ASPAN_LEN, PSPAN_LEN);
 aPlot = nan(ASPAN_LEN, PSPAN_LEN);
 pBattPlot = nan(ASPAN_LEN, PSPAN_LEN);
     
-aSpan = linspace(-3, 3, ASPAN_LEN);
+aSpan = linspace(-, ASPAN_LEN);
 pBattSpan = linspace(-40000, V_OC^2/(4*R_BATT), PSPAN_LEN);
 
 for iAVeh = 1:numel(aSpan)

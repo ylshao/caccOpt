@@ -1,4 +1,7 @@
-function wDotVehPlot = getMaxWDotVeh(tEngMap, wEngMap, Wv, Av)
+function [wDotVehPlot, vVehSpan, aVehMaxSpan] = getMaxWDotVeh(tEngMap, wEngMap, Wv, Av)
+% wDotVehPlot = getMaxWDotVeh(tEngMap, wEngMap, Wv, Av)
+%
+% input Wv, Av should be [rad/s] and [rad/s^2]
 
 TRAN_EFF = 0.9;
 Mv = 1400; %kg
@@ -20,7 +23,7 @@ Rr = 78;
 R = Rr/S;
 K = 4.113;
 
-PBATT_MAX_COEFF = 0.5;
+PBATT_MAX_COEFF = 1;
 
     pEngMin = tEngMap(1)*wEngMap(1);
     pEngMax = tEngMap(end)*wEngMap(end);
@@ -72,9 +75,9 @@ PBATT_MAX_COEFF = 0.5;
         wDotVehPlot(:, i) = linspace(-15*1.61*1000/3600/Rtire, wDotVehMaxCur, numel(Av))';
     end
 %%
-    vVehSpanKmph = WvResamp*Rtire*3600/1000; % [kMph]
+    vVehSpan = WvResamp*Rtire; % [kMph]
     aVehMaxSpan = wDotVehMaxSpan*Rtire;
     figure;
-    plot(vVehSpanKmph, aVehMaxSpan)
-    xlabel('vVeh [kMph]')
+    plot(vVehSpan, aVehMaxSpan)
+    xlabel('vVeh [m/s]')
     ylabel('aVeh [m/s^2]')
