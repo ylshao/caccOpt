@@ -73,16 +73,17 @@ aoCoeff = coeffvalues(aoFitFcn);
 boCoeff = coeffvalues(boFitFcn);
 
 %% Create fcn handles with vVeh, aVeh as arguments
+% partial derivative of ao w.r.t. aVeh
 pdAoAVehFcn = @(v, a) aoCoeff(3) + aoCoeff(5)*v + 2*aoCoeff(6)*a + ...
     aoCoeff(7)*v.^2 + 2*aoCoeff(8)*v.*a + 3*aoCoeff(9)*a.^2 + ...
     2*aoCoeff(10)*v.^2.*a + 3*aoCoeff(11)*v.*a.^2 + 4*aoCoeff(12)*a.^3;
-
+% partial derivative of bo w.r.t. aVeh
 pdBoAVehFcn = @(v, a) boCoeff(3) + boCoeff(5)*v + 2*boCoeff(6)*a; 
-    
+% partial derivative of ao w.r.t. vVeh
 pdAoVVehFcn = @(v, a) aoCoeff(2) + 2*aoCoeff(4)*v + aoCoeff(5)*a + ...
     2*aoCoeff(7)*a.*v + aoCoeff(8)*a.^2 + 2*aoCoeff(10)*a.^2.*v + ...
     aoCoeff(11) * a.^3; 
-
+% partial derivative of bo w.r.t. vVeh
 pdBoVVehFcn = @(v, a) boCoeff(2) + 2*boCoeff(4)*v + boCoeff(5)*a;
 
 tVehFcn = @(v, a)(F_TIRE*M_VEH*g*cos(phi) + ...

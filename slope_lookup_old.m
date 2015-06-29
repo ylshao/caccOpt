@@ -1,6 +1,4 @@
-% clear all
-%%
-% format long
+format long
 global Voc Rbatt Qbatt dt fo PbattMsv
 
 nm = 0.85;
@@ -82,11 +80,10 @@ R = Rr/S;
 K = 4.113;
 kcom = [1 1 -1 -1;1 -1 1 -1];
 
-
 % % Sample Wv from 0 - 60 mph 
 Wv = linspace(0,60,10)*1.61/3.6/Rtire;
 % Sample Av from -15 - 15 mph/s 
-Av = linspace(-10,10,10)*1.61/3.6/Rtire;
+Av = linspace(-15,15,10)*1.61/3.6/Rtire;
 
 % % Sample Wv from 0 - 60 mph 
 % Wv = linspace(0,60,601)*1.61/3.6/Rtire;
@@ -125,22 +122,13 @@ Weo = [];
 Mfo = [];
 MPbattMsv = [];
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% load max acceleration
-% load('wDotVehMax_V2_150625')
-wDotVehPlot = getMaxWDotVeh(enginemap_trq, enginemap_spd, Wv, Av);
-
-PBATT_MIN = -40000;
-PBATT_MAX = Voc^2/(4*Rbatt);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 for m = 1:length(Av);
     
-%     m
+    m
     Accreq = Rtire*Av(m);
     
     for i = 1:length(Wv);
-        Accreq = Rtire*wDotVehPlot(m, i);      
+        
         Wreq = Wv(i);
         
         if Wreq <= 0.02
@@ -207,9 +195,6 @@ for m = 1:length(Av);
         end
         
         Pbathi = ng^k1*T1*W1 + nm^k2*T2*W2;
-        if isnan(Pbathi)
-            debug = 1;
-        end
         
         Teng = enginemap_trq(end);
         Weng = enginemap_spd(end);
@@ -231,40 +216,9 @@ for m = 1:length(Av);
         end
         
         Pbatlo = ng^k1*T1*W1 + nm^k2*T2*W2;
-        % PbattM = NOT INCLUDING ENGINE SHUTOFF FOR ITERATION PURPOSES
-        WENG_MIN = 1000*2*pi/60;
-        if Pbathi > PBATT_MAX && Pbatlo <= PBATT_MAX
-            Pbathi = PBATT_MAX;
-            [fuelConsMap, wEngMap, tEngMap] = ...
-                getConstPBattMap(PBATT_MAX, WeM, Wreq, Treq, enginemap_trq,enginemap_spd,enginemap);
-                        
-            tEngResamp = interp1(wEngMap,tEngMap,MaxSp);
-            wEngResamp = MaxSp;
-            
-            % get the intercept point between constant Pbatt map and
-            % constant fuel consumption map
-            intcpInd = find((MaxTq - tEngResamp)>0, 1, 'first');
-            WENG_MIN = wEngResamp(intcpInd);
-            if numel(intcpInd)~=1;
-                debug = 1;
-                
-                figure; hold on;
-                plot(MaxSp, MaxTq, 'g*')
-                plot(wEngResamp, tEngResamp, 'b')
-            end
-        elseif Pbathi > PBATT_MAX && Pbatlo > PBATT_MAX
-            debug = 1;
-        elseif Pbathi < PBATT_MIN && Pbatlo < PBATT_MIN
-            debug = 1;
-%             Pbatlo = PBATT_MIN;
-%             Pbathi = 0;
-        elseif Pbathi >= PBATT_MIN && Pbatlo < PBATT_MIN
-%             Pbatlo = PBATT_MIN;
-        end
-            
-        PbattM = linspace(Pbatlo,Pbathi,N);
         
-        WeM = linspace(WENG_MIN, 4000*2*pi/60, 30);
+        % PbattM = NOT INCLUDING ENGINE SHUTOFF FOR ITERATION PURPOSES
+        PbattM = linspace(Pbatlo,Pbathi,N);
         % ============================
         % END Initialize Pbatt lo & hi
         % ============================
@@ -298,8 +252,7 @@ for m = 1:length(Av);
         % ==========================================
         
         % Combine
-        fprintf('wVeh %d, wDotVeh %d, pBattMin %8.4f, pBattMax %8.4f, tReq %8.4f\n', i, m, Pbatlo, Pbathi, Treq)
-
+        
         % Pbat_lim = [shutoff, lo]
         Pbat_lim(i,:) = [Pbat_shutoff Pbatlo];
         
@@ -308,6 +261,7 @@ for m = 1:length(Av);
         
         %     abc = Voc^2 - 4*Rbatt*PbattM;
         %     dSOC(i,:) = -1/(2*Qbatt*Rbatt) * (Voc - sign(abc).*(abc).^(.5));
+        
         for j = 1:length(PbattM)
             
             Pbatt = PbattM(j);
@@ -343,10 +297,6 @@ for m = 1:length(Av);
                         Tg = Tgo;
                         Te = Teo;
                         countin = countin + 1;
-%                         fprintf('%d %d %d, km = %d, kg = %d\n', i, j, k, km, kg)
-                        if Tg > 0;
-                            debug = 1;
-                        end
                     else
                         countout = countout + 1;
                     end
@@ -355,6 +305,7 @@ for m = 1:length(Av);
                     if countout == 4
                         c = c + 1;
                         cno(c,:) = [i j k];
+                        
                         % Check if more than 1 Combinations work!
                     elseif countin > 1
                         d = d + 1;
@@ -365,17 +316,13 @@ for m = 1:length(Av);
                 
                 countin = 0;
                 countout = 0;
-                if Wreq > 0
-                    debug = 1;
-                end
-                 if i == 2 && m == 1 && k == 30
-                     debug = 1;
-                 end
-                fM(i,j,k) = interp2(enginemap_trq,enginemap_spd,enginemap,Te,We, 'spline')*dt;
+                
+                fM(i,j,k) = interp2(enginemap_trq,enginemap_spd,enginemap,Te,We)*dt;
                 TM(i,j,k) = Te;
                 WM(i,j,k) = We;
+                
             end
-
+            
             % Use Interp1 to limit the torque available for each Pbatt
             % according to the Max Torque line :
             
@@ -384,13 +331,6 @@ for m = 1:length(Av);
             TMm = squeeze(TM(i,j,:));
             Tresam = interp1(WMm,TMm,MaxSp);
             Wresam = MaxSp;
-            
-            %%
-%             if Pbatt <-69000 && i == 2 && m == 1
-%             figure; hold on;
-%             plot(MaxSp, MaxTq, 'g*')
-%             plot(Wresam, Tresam, 'b')
-%             end
             
             % Find min difference bet Tq (intersection)
             dTints = abs(Tresam - MaxTq);
@@ -435,8 +375,8 @@ for m = 1:length(Av);
         % because if Pbatt is slightly below the fuel map, then
         % mf for min Pbatt will be NaN (will interrupt optimization process)
         [rowf colf] = size(fo);
-%         fo(1,:) = 2.7501;
-%         fo(rowf,:) = 0.1513;
+        fo(1,:) = 2.7501;
+        fo(rowf,:) = 0.1513;
         
         % include zero for engine shutoff
         Mfo(m,i,:) = [fo(:,i); 0];
@@ -449,35 +389,19 @@ end
 % For Engine Shut-Off, fuel consumption == 0
 fo = [fo; zeros(1,colf)];
 
+
 %% Calculate Optimal Input PbattF
 % ===============================
 
 % Find Slopes of M_dot vs Pbatt at each time step
 aoM = [];
 boM = [];
-% selInd = 1:(size(MPbattMsv, 3)-1); % do not include engine_shutoff
-selInd = 1:(size(MPbattMsv, 3)); % include engine_shutoff
-FONT_SIZE = 6;
-RAND_FIG_NUM = randi([0 9999],1,1);
-if numel(Av)*numel(Wv) <= 60;
-    figure(RAND_FIG_NUM); clf; hold on; subNum = 1;
-end
-for n = length(Av):-1:1
+for n = 1:length(Av)
     
     for p = 1:length(Wv)
         
-%         if p == 4 && n == 10
-%         debug = 1;
-        if numel(Av)*numel(Wv) <= 60
-            figure(RAND_FIG_NUM)
-            subplot(length(Av), length(Wv), subNum); subNum = subNum + 1;
-            plot(squeeze(MPbattMsv(n, p, :))/10^3, squeeze(Mfo(n, p, :)), 'x')
-            title(sprintf('Av %d Wv %d', n, p), 'FontSize', FONT_SIZE)
-            set(gca, 'FontSize', FONT_SIZE)
-        end
-
         % linear curve fitting
-        ao = polyfit(squeeze(MPbattMsv(n,p,selInd)), squeeze(Mfo(n,p,selInd)), 1);
+        ao = polyfit(squeeze(MPbattMsv(n,p,:)), squeeze(Mfo(n,p,:)), 1);
         
         aoM(n,p) = ao(1);
         boM(n,p) = ao(2);
@@ -492,12 +416,12 @@ WvMfig = Wv;
 AvMfig = Av;
 
 % Save Lookup Table into .mat file
-% save('Lookup.mat','aoMfig','boMfig','WvMfig','AvMfig','Rtire')
+save('Lookup.mat','aoMfig','boMfig','WvMfig','AvMfig','Rtire')
 
 % Compare plots (plot one on top of the other)
-figure; 
-% mesh(WvMfig/1.61*3.6*Rtire,AvMfig/1.61*3.6*Rtire,aoMfig*1e3)
-surf(WvMfig/1.61*3.6*Rtire,wDotVehPlot/1.61*3.6*Rtire,aoMfig*1e3)
+figure(1); 
+mesh(WvMfig/1.61*3.6*Rtire,AvMfig/1.61*3.6*Rtire,boMfig*1e3)
+
 datax = WvMfig/1.61*3.6*Rtire;
 datay = AvMfig/1.61*3.6*Rtire;
 dataz = boMfig*1e3;

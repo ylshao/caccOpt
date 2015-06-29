@@ -43,25 +43,12 @@ DIST_MIN = 20;
 %% Get the polynomial fitting for ao, bo mappings
 mapData = 'lookup_aobo_150623';
 [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = fitAoBo(mapData);
+FitPara = fitAoBoFull(mapData);
 %% Create fcn handles
-% partial derivative of ao w.r.t. aVeh
-pdAoAVehFcn = @(v, a) aoCoeff(3) + aoCoeff(5)*v + 2*aoCoeff(6)*a + ...
-    aoCoeff(7)*v.^2 + 2*aoCoeff(8)*v.*a + 3*aoCoeff(9)*a.^2 + ...
-    2*aoCoeff(10)*v.^2.*a + 3*aoCoeff(11)*v.*a.^2 + 4*aoCoeff(12)*a.^3;
-% partial derivative of bo w.r.t. aVeh
-pdBoAVehFcn = @(v, a) boCoeff(3) + boCoeff(5)*v + 2*boCoeff(6)*a; 
-% partial derivative of ao w.r.t. vVeh
-pdAoVVehFcn = @(v, a) aoCoeff(2) + 2*aoCoeff(4)*v + aoCoeff(5)*a + ...
-    2*aoCoeff(7)*a.*v + aoCoeff(8)*a.^2 + 2*aoCoeff(10)*a.^2.*v + ...
-    aoCoeff(11) * a.^3; 
-% partial derivative of bo w.r.t. vVeh
-pdBoVVehFcn = @(v, a) boCoeff(2) + 2*boCoeff(4)*v + boCoeff(5)*a;
-
 % vehicle request torque handle
 tVehFcn = @(v, a)(F_TIRE*M_VEH*g*cos(phi) + ...
     0.5*ROU*C_D*A_TIRE*R_TIRE^2*v/R_TIRE^2 + M_VEH*a)*R_TIRE;
-% fuel consumption handle
-fuelConsFcn = @(v, a, pBatt) aoFitFcn(v, a)*pBatt + boFitFcn(v, a);
+
 
 % augmented state 'da' for distance constraints  
 distCstrFcn = @(dist) (dist - DIST_MIN).^2.*heaviside(DIST_MIN - dist) + ...
@@ -91,18 +78,20 @@ lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial ac
 LAMBDA3 = -227.036499568364;
 LAMBDA4 = 0.01;
 
-% choose the method to solve the acceleration 
-METHOD = 4;
+% % choose the method to solve the acceleration 
+% METHOD = 4;
     
 %% get the initial acceleration
 % get polynomial for solving aVeh
-aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
-
+% aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
+aVehPolyRealRootsCell = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
+aVehPolyRealRoots = cell2num(aVehPolyRealRootsCell);
 aPreInit = (vPreList(2) - vPreList(1))/TS_PRE;
-aVehPolyRoots = roots(aVehPoly);
-aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
+% aVehPolyRoots = roots(aVehPoly);
+% aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
 [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPreInit));
 aVehInit = aVehPolyRealRoots(minAVehInd); % choose the smallest one here
+[aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVehInit, FitPara);
 pBattInit = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVehInit, aVehInit)*Q_BATT))^2);
 fprintf('aVehInit %8.4f, pBattInit %8.4f\n', aVehInit, pBattInit)
 
@@ -112,16 +101,8 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 
 [hamilInit, hamilTrajInit] = ...
     getHamil(lambda1Init, lambda2Init, LAMBDA3, LAMBDA4, vPreInit, ...
-    vVehInit, aVehInit, pBattInit, distFollowInit, fuelConsFcn, distCstrFcn);
+    vVehInit, aVehInit, pBattInit, distFollowInit, distCstrFcn, FitPara);
 
-%
-
-% Sample Wv from 0 - 60 mph 
-Wv = linspace(0,60,20)*1.61/3.6/R_TIRE;
-% Sample Av from -15 - 15 mph/s 
-Av = linspace(-10,10,30)*1.61/3.6/R_TIRE;
-[~, vVehSpan, aVehMaxSpan] = getMaxWDotVeh(tEngMap, wEngMap, Wv, Av);
-interp1(vVehSpan, aVehMaxSpan, vVehInit)
 %% start simulation of the preceding vehicle performance
 tic;
 DT = 0.5;
@@ -172,60 +153,37 @@ for i = 1:SIMU_STEPS
     
     % calculate one step forward for the costates
     lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
-    lambda2(i+1) = lambda2(i) + DT*(-pdAoVVehFcn(vVeh(i), aVeh(i))*pBatt(i) - ...
-                pdBoVVehFcn(vVeh(i), aVeh(i)) + lambda1(i));
+    lambda2(i+1) = lambda2(i) + DT*(-getPdAoVVeh(vVeh(i), aVeh(i), FitPara)*pBatt(i) - ...
+                getPdBoVVeh(vVeh(i), aVeh(i), FitPara) + lambda1(i));
     
             
-    aVehPoly = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, aoCoeff, boCoeff);
-    aVehPolyRoots = roots(aVehPoly);
-    aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
-    
-    switch METHOD 
-        case 1
-            % METHOD 1: choose the smallest one here
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 2
-            % METHOD 2: choose the one that closest to last aVeh
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots - aVeh(i)));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 3
-            % METHOD 3: choose the one that closest to aPre
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPre(i+1)));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 4
-            % METHOD 4: find correct aVeh through Hamiltonian
-            aVehPolyRealRoots = aVehPolyRealRoots(...
-                aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
-            ROOTS_NUM = numel(aVehPolyRealRoots);
-            if ROOTS_NUM == 1
-                aVeh(i+1) = aVehPolyRealRoots; 
-            else
-                hamilArray = nan(ROOTS_NUM, 1);
-                for iRoots = 1:ROOTS_NUM
-                    aVehCur = aVehPolyRealRoots(iRoots);
-                    pBattCur = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVehCur)*Q_BATT))^2);
-                    fuelCons = fuelConsFcn(vVeh(i+1), aVehCur, pBattCur);
-                    stateOne = lambda1(i+1)*(vPre(i+1)-vVeh(i+1));
-                    stateTwo = lambda2(i+1)*aVehCur;
-                    stateThree = LAMBDA3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);
-                    stateFour = LAMBDA4*distCstrFcn(distFollow(i+1));
-                    
-                    hamilArray(iRoots) = fuelCons + stateOne + stateTwo + stateThree + stateFour;
-                end
-                [~, minAVehInd] = min(hamilArray);
-                aVeh(i+1) = aVehPolyRealRoots(minAVehInd); 
-            end
-            
-    end
+    aVehPolyRealRootsCell = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
+    aVehPolyRealRoots = cell2num(aVehPolyRealRootsCell);
+    % METHOD: find correct aVeh through Hamiltonian
+%     aVehPolyRealRoots = aVehPolyRealRoots(...
+%         aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
+    ROOTS_NUM = numel(aVehPolyRealRoots);
+    if ROOTS_NUM == 1
+        aVeh(i+1) = aVehPolyRealRoots; 
+    else
+        hamilArray = nan(ROOTS_NUM, 1);
+        for iRoots = 1:ROOTS_NUM
+            aVehCur = aVehPolyRealRoots(iRoots);
+            [aoFitFcn, ~, ~, ~] = getCurAoBoMap(aVehCur, FitPara);
+            pBattCur = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVehCur)*Q_BATT))^2);
+            fuelCons = getFuelCons(vVeh(i+1), aVehCur, pBattCur, FitPara);
+            stateOne = lambda1(i+1)*(vPre(i+1)-vVeh(i+1));
+            stateTwo = lambda2(i+1)*aVehCur;
+            stateThree = LAMBDA3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);
+            stateFour = LAMBDA4*distCstrFcn(distFollow(i+1));
 
-    
-    if METHOD == 4
-        if abs(hamilArray(minAVehInd)-hamilTraj(i+1, end)) > 1e-5
-            debug = 1;
+            hamilArray(iRoots) = fuelCons + stateOne + stateTwo + stateThree + stateFour;
         end
+        [~, minAVehInd] = min(hamilArray);
+        aVeh(i+1) = aVehPolyRealRoots(minAVehInd); 
     end
-    
+             
+    [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVeh(i+1), FitPara);
     pBatt(i+1) = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVeh(i+1))*Q_BATT))^2);
 
     % get the max and min pBatt values allowed
@@ -246,7 +204,7 @@ for i = 1:SIMU_STEPS
     % get each part of the hamiltonian trajectory
     [~, hamilTraj(i+1, :)] = ...
     getHamil(lambda1(i+1), lambda2(i+1), LAMBDA3, LAMBDA4, vPre(i+1), ...
-    vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), fuelConsFcn, distCstrFcn);
+    vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), distCstrFcn, FitPara);
 
 end
 toc;

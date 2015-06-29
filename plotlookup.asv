@@ -15,11 +15,11 @@ zlabel('a_0-Slope ((g/s)/kWatt)','fontsize',15)
 %%
 x = wVehList/1.61*3.6*Rtire;
 y = aVehList/1.61*3.6*Rtire;
-z = aoList*1e3; 
+z = boList*1e3; 
 
 %%
 deSamp = 5;
-aVehSel = 165:301;
+aVehSel = linspace(1, 117, 30);
 xxx = x(1:deSamp:end);
 yyy = y(aVehSel);
 zzz = z(aVehSel, 1:deSamp:end);

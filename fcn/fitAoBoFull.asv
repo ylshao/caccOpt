@@ -59,8 +59,7 @@ aVehPlot = reshape(aVehFit, size(aoMap, 1), size(aoMap, 2));
 aoFitPlot = aoFitFcn(vVehFit, aVehFit);
 aoFitPlot = reshape(aoFitPlot, size(aoMap, 1), size(aoMap, 2));
 figure; hold on
-plot3(vVehFit, aVehFit, aoFitFcn(vVehFit, aVehFit), 'x');
-mesh(vVehPlot, aVehPlot, reshape(aoFit, size(aoMap, 1), size(aoMap, 2)))
+plot3(vVehPlot, aVehPlot, aoFitPlot);
 end
 
 end
