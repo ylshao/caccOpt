@@ -1,7 +1,7 @@
 function pdBoAVeh = getPdBoAVeh(v, a, FitPara)
 
-PIECE_ONE_LIM = -0.863641240210278;
-PIECE_TWO_LIM = 2.015162893823980;
+    PIECE_ONE_LIM = -0.268333333333333;
+    PIECE_TWO_LIM = 0.626111111111111;
 
 if a < PIECE_ONE_LIM
     boCoeff = FitPara(1).boCoeff;

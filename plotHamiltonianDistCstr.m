@@ -49,7 +49,7 @@ aVehMph = aVehList*R_TIRE/MPH_2_KMPH*3600/1000; % [rad/s^2]->[mph/s]
 % because the ao-mapping is sort of piecewise, only select a region of
 % acceleration for polynomial fitting. Otherwise need to have maybe 3
 % different piecewise polynomials
-selAccel = 121:181; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
+selAccel = 145:165; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
 aVehComfMph = aVehMph(selAccel); 
 aoComf = aoList(selAccel, :);
 boComf = boList(selAccel, :);
@@ -101,10 +101,10 @@ pdDistFollowCstr = @(dist) 2*(dist - DIST_MIN).*heaviside(DIST_MIN - dist) - ...
 %% Estimate one set of lambda-2 and lambda-3
 % because aVeh and pBatt have physical meanings, so currently I am
 % estimating the optimal control to estimate the range of costates
-vVehEst = 14.1018937388889; % [m/s]
-distFollowEst = 20; % [m]
-aVehEst = 1.5; %0.7454; % [m/s^2]
-pBattEst = 10000; %-16414.0418; % [Watts]
+vVehEst = 16.1018937388889; % [m/s]
+distFollowEst = 50; % [m]
+aVehEst = 0.3; %0.7454; % [m/s^2]
+pBattEst = 5000; %-16414.0418; % [Watts]
 
 % aVehEst = aVehOpt; %0.7454; % [m/s^2]
 % pBattEst = pBattOpt; %-16414.0418; % [Watts]

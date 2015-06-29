@@ -1,5 +1,5 @@
-% clear all
-% clc
+clear all
+clc
 %% Engine Map
 wEngMap=[1000 1250 1500 1750 2000 2250 2500 2750 3000 3250 3500 4000]*2*pi/60;  % (rad/s), speed range of the engine
 lbft2Nm=1.356; %conversion from lbft to Nm
@@ -42,7 +42,7 @@ DIST_MIN = 20;
 
 %% Get the polynomial fitting for ao, bo mappings
 mapData = 'lookup_aobo_150623';
-[aoFitFcn, boFitFcn, aoCoeff, boCoeff] = fitAoBo(mapData);
+% [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = fitAoBo(mapData);
 FitPara = fitAoBoFull(mapData);
 %% Create fcn handles
 % vehicle request torque handle
@@ -66,7 +66,7 @@ timeList = 0:TS_PRE:(numel(vPreList)-1)*TS_PRE;
 %% Define the initial states and costates
 % initial states
 vPreInit = vPreList(1);
-distFollowInit = 100;
+distFollowInit = 50;
 vVehInit = max(vPreInit, 0);
 socInit = 0.6;
 statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
@@ -74,8 +74,8 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
 lambda1Init = 0;
-lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -227.036499568364;
+lambda2Init = -1.729410613085906; % bizarre lambda value to get smooth initial acceleration 
+LAMBDA3 = -270.457787217572;
 LAMBDA4 = 0.01;
 
 % % choose the method to solve the acceleration 
@@ -84,8 +84,8 @@ LAMBDA4 = 0.01;
 %% get the initial acceleration
 % get polynomial for solving aVeh
 % aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
-aVehPolyRealRootsCell = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
-aVehPolyRealRoots = cell2num(aVehPolyRealRootsCell);
+[aVehPolyRealRootsCell, aVehPolyRealRoots] = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
+% aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
 aPreInit = (vPreList(2) - vPreList(1))/TS_PRE;
 % aVehPolyRoots = roots(aVehPoly);
 % aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
@@ -107,13 +107,13 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 1000;
+SIMU_STEPS = 500;
 
 % constraints
-% AVEH_MAX = 3;
-% AVEH_MIN = -3;
-AVEH_MAX = inf;
-AVEH_MIN = -inf;
+AVEH_MAX = 5;
+AVEH_MIN = -5;
+% AVEH_MAX = inf;
+% AVEH_MIN = -inf;
 
 PBATT_MAX = V_OC^2/(4*R_BATT);
 PBATT_MIN = -40000;
@@ -155,15 +155,22 @@ for i = 1:SIMU_STEPS
     lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-getPdAoVVeh(vVeh(i), aVeh(i), FitPara)*pBatt(i) - ...
                 getPdBoVVeh(vVeh(i), aVeh(i), FitPara) + lambda1(i));
-    
-            
-    aVehPolyRealRootsCell = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
-    aVehPolyRealRoots = cell2num(aVehPolyRealRootsCell);
+%     i
+    if i == 106
+        debug = 1;
+    end
+    [aVehPolyRealRootsCell, aVehPolyRealRoots]  = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
+
+%     aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
     % METHOD: find correct aVeh through Hamiltonian
-%     aVehPolyRealRoots = aVehPolyRealRoots(...
-%         aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
+    aVehPolyRealRoots = aVehPolyRealRoots(...
+        aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
     ROOTS_NUM = numel(aVehPolyRealRoots);
-    if ROOTS_NUM == 1
+    if ROOTS_NUM < 1
+        debug = 1;
+        aVeh(i+1) = aVeh(i);
+%         i
+    elseif ROOTS_NUM == 1
         aVeh(i+1) = aVehPolyRealRoots; 
     else
         hamilArray = nan(ROOTS_NUM, 1);

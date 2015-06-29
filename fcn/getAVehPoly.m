@@ -1,12 +1,15 @@
-function aVehPolyRealRootsCell = getAVehPoly(vVeh, lambda2, lambda3, FitPara)
+function [aVehPolyRealRootsCell, aVehRoots] = getAVehPoly(vVeh, lambda2, lambda3, FitPara)
     
     V_OC = 201.6; %volt
     Q_BATT = 6.5*3600; % ampere*sec
     R_BATT = 0.003*6*28;  % ohm
-PIECE_ONE_LIM = -0.863641240210278;
-PIECE_TWO_LIM = 2.015162893823980;
+    
+AVEH_MAX = 5;
+AVEH_MIN = -5;
+    PIECE_ONE_LIM = -0.268333333333333;
+    PIECE_TWO_LIM = 0.626111111111111;
 
-
+aVehRoots = [];
     aVehPolyRealRootsCell = cell(3, 1);
     for i = 1:3
         aoCoeff = FitPara(i).aoCoeff;
@@ -59,21 +62,28 @@ PIECE_TWO_LIM = 2.015162893823980;
                 [zeros(1, ORDER-numel(partFour)), partFour];
 
         %%
+%         if 
+%             debug = 1;
+%         end
         aVehPolyRoots = roots(aVehPoly);
         aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
         
-        switch i
-            case 1
-            aVehPolyRealRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots < PIECE_ONE_LIM);
-            case 2
-            aVehPolyRealRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots >= PIECE_ONE_LIM & ...
-                aVehPolyRealRoots <= PIECE_TWO_LIM);    
-            case 3
-            aVehPolyRealRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots > PIECE_TWO_LIM);
+%         switch i
+%             case 1
+%             aVehPolyRealRoots = ...
+%                 aVehPolyRealRoots(AVEH_MIN <= aVehPolyRealRoots & ...
+%                 aVehPolyRealRoots < PIECE_ONE_LIM);
+%             case 2
+%             aVehPolyRealRoots = ...
+%                 aVehPolyRealRoots(aVehPolyRealRoots >= PIECE_ONE_LIM & ...
+%                 aVehPolyRealRoots <= PIECE_TWO_LIM);    
+%             case 3
+%             aVehPolyRealRoots = ...
+%                 aVehPolyRealRoots(aVehPolyRealRoots > PIECE_TWO_LIM & ...
+%                 aVehPolyRealRoots <= AVEH_MAX);
+%         end
+        if ~isempty(aVehPolyRealRoots)
+            aVehPolyRealRootsCell{i} = aVehPolyRealRoots;
+            aVehRoots = [aVehRoots aVehPolyRealRoots];
         end
-        
-        aVehPolyRealRootsCell{i} = {aVehPolyRealRoots};
     end
