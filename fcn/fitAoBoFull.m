@@ -15,19 +15,25 @@ load(mapData)
 MPH_2_KMPH = 1.60934;
 R_TIRE = 0.3107;
 %% Prepare data for fitting
+% fuelCons = ao*Pbatt + bo, if Pbatt is zero, bo should at least be larger
+% than zero. Though seems like it should equal to the fuel cons @ minimal
+% engine output
+boListFit = boList;
+MIN_BO = 0;
+boListFit(boListFit < MIN_BO) = MIN_BO;
 % convert to mph
 vVehMph = wVehList*R_TIRE/MPH_2_KMPH*3600/1000; % [rad/s]->[mph]
 aVehMph = aVehList*R_TIRE/MPH_2_KMPH*3600/1000; % [rad/s^2]->[mph/s]
 
 selAccelCell = [{1:145}, {145:165}, {165:numel(aVehList)}];
 polyTypeAoCell = [{'poly41'}, {'poly24'}, {'poly41'}];
-polyTypeBoCell = [{'poly22'}, {'poly22'}, {'poly22'}];
+polyTypeBoCell = [{'poly32'}, {'poly32'}, {'poly32'}];
 FitPara(numel(selAccelCell)) = struct;
 for i = 1:numel(selAccelCell)
     selAccel = selAccelCell{i}; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
     aVehComfMph = aVehMph(selAccel); 
     aoSel = aoList(selAccel, :);
-    boSel = boList(selAccel, :);
+    boSel = boListFit(selAccel, :);
 
     % The selected region of ao bo mapping can use 
     %   mesh(vVehMapMph, aVehMapMph, aoMap) to plot

@@ -44,11 +44,12 @@ DIST_MIN = 20;
 mapData = 'lookup_aobo_150623';
 % [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = fitAoBo(mapData);
 FitPara = fitAoBoFull(mapData);
+
+% aoFitFullFcn = 
 %% Create fcn handles
 % vehicle request torque handle
 tVehFcn = @(v, a)(F_TIRE*M_VEH*g*cos(phi) + ...
     0.5*ROU*C_D*A_TIRE*R_TIRE^2*v/R_TIRE^2 + M_VEH*a)*R_TIRE;
-
 
 % augmented state 'da' for distance constraints  
 distCstrFcn = @(dist) (dist - DIST_MIN).^2.*heaviside(DIST_MIN - dist) + ...
@@ -66,7 +67,7 @@ timeList = 0:TS_PRE:(numel(vPreList)-1)*TS_PRE;
 %% Define the initial states and costates
 % initial states
 vPreInit = vPreList(1);
-distFollowInit = 100;
+distFollowInit = 50;
 vVehInit = max(vPreInit, 0);
 socInit = 0.6;
 statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
@@ -74,8 +75,8 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
 lambda1Init = 0;
-lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -227.036499568364;
+lambda2Init = -1.729410613085906; % bizarre lambda value to get smooth initial acceleration 
+LAMBDA3 = -270.457787217572;
 LAMBDA4 = 0.01;
 
 % % choose the method to solve the acceleration 
@@ -84,9 +85,9 @@ LAMBDA4 = 0.01;
 %% get the initial acceleration
 % get polynomial for solving aVeh
 % aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
-aVehPolyRealRootsCell = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
-aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
-aPreInit = (vPreList(2) - vPreList(1))/TS_PRE;
+[aVehPolyRealRootsCell, aVehPolyRealRoots] = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
+% aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
+aPreInit = (vPreList(2) - vPreList(1))/TS_PRE; 
 % aVehPolyRoots = roots(aVehPoly);
 % aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
 [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPreInit));
@@ -107,13 +108,13 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 1000;
+SIMU_STEPS = 500;
 
 % constraints
-% AVEH_MAX = 3;
-% AVEH_MIN = -3;
-AVEH_MAX = inf;
-AVEH_MIN = -inf;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
+% AVEH_MAX = inf;
+% AVEH_MIN = -inf;
 
 PBATT_MAX = V_OC^2/(4*R_BATT);
 PBATT_MIN = -40000;
@@ -142,6 +143,7 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
+aVehRoots = cell(SIMU_STEPS, 2);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
@@ -155,23 +157,23 @@ for i = 1:SIMU_STEPS
     lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-getPdAoVVeh(vVeh(i), aVeh(i), FitPara)*pBatt(i) - ...
                 getPdBoVVeh(vVeh(i), aVeh(i), FitPara) + lambda1(i));
-    
-    if i == 23
+%     i
+    if i == 106
         debug = 1;
     end
-    aVehPolyRealRootsCell = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
-
-    aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
+    [aVehPolyRealRootsCell, aVehPolyRealRoots]  = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
+    aVehRoots{i, 1} = aVehPolyRealRoots;
+%     aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
     % METHOD: find correct aVeh through Hamiltonian
 %     aVehPolyRealRoots = aVehPolyRealRoots(...
 %         aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
+    aVehPolyRealRoots = max(min(aVehPolyRealRoots, AVEH_MAX), AVEH_MIN);
     ROOTS_NUM = numel(aVehPolyRealRoots);
     if ROOTS_NUM < 1
         debug = 1;
-        
-    end
-
-    if ROOTS_NUM == 1
+        aVeh(i+1) = aVeh(i);
+%         i
+    elseif ROOTS_NUM == 1
         aVeh(i+1) = aVehPolyRealRoots; 
     else
         hamilArray = nan(ROOTS_NUM, 1);
@@ -204,7 +206,7 @@ for i = 1:SIMU_STEPS
     % simple saturation
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
-    
+    aVehRoots{i, 2} = aVeh(i+1);
     if pBatt(i+1) < -40000
         debug = 1;
     end
@@ -240,10 +242,10 @@ SimuResult.tVeh = tVeh;
 SimuResult.hamilTraj = hamilTraj;
 
 %%
-figure;
-plot(timeSimu, [sign(vPre-vVeh) sign(lambda1)])
-legend('sign vel', 'sign \lambda_1')
-ylim([-1.2, 1.2])
+% figure;
+% plot(timeSimu, [sign(vPre-vVeh) sign(lambda1)])
+% legend('sign vel', 'sign \lambda_1')
+% ylim([-1.2, 1.2])
 %% plotting
 
 SUB_ALIGN = '24';

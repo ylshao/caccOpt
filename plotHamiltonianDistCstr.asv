@@ -73,7 +73,6 @@ aoCoeff = coeffvalues(aoFitFcn);
 boCoeff = coeffvalues(boFitFcn);
 
 %% Create fcn handles with vVeh, aVeh as arguments
-mapData = 'lookup_aobo_150623';
 FitPara = fitAoBoFull(mapData);
 % partial derivative of ao w.r.t. aVeh
 pdAoAVehFcn = @(v, a) aoCoeff(3) + aoCoeff(5)*v + 2*aoCoeff(6)*a + ...
@@ -130,18 +129,18 @@ elseif pBattEst > pBattMax
     pBattEst = pBattMax;
     fprintf('pBatt too large, range [%8.4f, %8.4f]\n', pBattMin, pBattMax)
 end
-[aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVehEst, FitPara);
+
 aoEst = aoFitFcn(vVehEst, aVehEst);
 boEst = boFitFcn(vVehEst, aVehEst);
 
 lambda3 = sqrt(V_OC^2 - 4*R_BATT*pBattEst)*aoEst*Q_BATT;
-lambda2 = -getPdAoAVeh(vVehEst, aVehEst, FitPara)*pBattEst - getPdBoAVeh(vVehEst, aVehEst, FitPara);
+lambda2 = -pdAoAVehFcn(vVehEst, aVehEst)*pBattEst - pdBoAVehFcn(vVehEst, aVehEst);
 lambda1 = 0;
-fuelConsEst = getFuelCons(vVehEst, aVehEst, pBattEst, FitPara);
-fprintf('lambda2 %8.15f, lambda3 %8.15f, fuelCons [g/s] %8.4f\n', ...
+fuelConsEst = fuelConsFcn(vVehEst, aVehEst, pBattEst);
+fprintf('lambda2 %8.4f, lambda3 %8.4f, fuelCons [g/s] %8.4f\n', ...
     lambda2, lambda3, fuelConsEst)
 %% Estimate the shape of Hamiltonianwhos
-vPre = vVehEst;
+vPre = vVehEst+2;
 vVehCur = vVehEst;
 distFollowCur = distFollowEst;
 stateCur = [distFollowCur vVehCur 0.6]; % state [d, v, SOC]'
@@ -149,7 +148,7 @@ stateCur = [distFollowCur vVehCur 0.6]; % state [d, v, SOC]'
 % iteration for Hamiltonian calculation
 ASPAN_LEN = 100;
 PSPAN_LEN = 50;
-% aSpan = linspace(min(aVehFit), max(aVehFit), ASPAN_LEN);
+aSpan = linspace(min(aVehFit), max(aVehFit), ASPAN_LEN);
 
 hamilPlot = nan(ASPAN_LEN, PSPAN_LEN);
 aPlot = nan(ASPAN_LEN, PSPAN_LEN);
@@ -173,7 +172,7 @@ for iAVeh = 1:numel(aSpan)
         pBattCur = pBattSpan(iPBatt);
         
         % calc Hamiltonian part by part to compare the value of each part
-        fuelConsCur = getFuelCons(vVehCur, aVehCur, pBattCur, FitPara);
+        fuelConsCur = fuelConsFcn(vVehCur, aVehCur, pBattCur);
         stateOne = lambda1*(vPre-vVehCur);
         stateTwo = lambda2*aVehCur;
         stateThree = lambda3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);

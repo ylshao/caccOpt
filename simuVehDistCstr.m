@@ -1,9 +1,9 @@
 clear all
 clc
 %% Engine Map
-wEngMap=[1000 1250 1500 1750 2000 2250 2500 2750 3000 3250 3500 4000]*2*pi/60;  % (rad/s), speed range of the engine
-lbft2Nm=1.356; %conversion from lbft to Nm
-tEngMap=[6.3 12.5 18.8 25.1 31.3 37.6 43.9 50.1 56.4 62.7 68.9 75.2]*lbft2Nm;  % (N*m), torque range of the engine
+wEngMap = [1000 1250 1500 1750 2000 2250 2500 2750 3000 3250 3500 4000]*2*pi/60;  % (rad/s), speed range of the engine
+lbft2Nm = 1.356; %conversion from lbft to Nm
+tEngMap = [6.3 12.5 18.8 25.1 31.3 37.6 43.9 50.1 56.4 62.7 68.9 75.2]*lbft2Nm;  % (N*m), torque range of the engine
 
 % (g/s), fuel use map indexed vertically by enginemap_spd and horizontally by enginemap_trq
 fuelConsMap = [
@@ -44,11 +44,12 @@ DIST_MIN = 20;
 mapData = 'lookup_aobo_150623';
 % [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = fitAoBo(mapData);
 FitPara = fitAoBoFull(mapData);
+
+% aoFitFullFcn = 
 %% Create fcn handles
 % vehicle request torque handle
 tVehFcn = @(v, a)(F_TIRE*M_VEH*g*cos(phi) + ...
     0.5*ROU*C_D*A_TIRE*R_TIRE^2*v/R_TIRE^2 + M_VEH*a)*R_TIRE;
-
 
 % augmented state 'da' for distance constraints  
 distCstrFcn = @(dist) (dist - DIST_MIN).^2.*heaviside(DIST_MIN - dist) + ...
@@ -74,9 +75,9 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
 lambda1Init = 0;
-lambda2Init = -1.729410613085906; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -270.457787217572;
-LAMBDA4 = 0.01;
+lambda2Init = -1.767292826062368; % bizarre lambda value to get smooth initial acceleration 
+LAMBDA3 = -270.457787217571930;
+LAMBDA4 = 0;
 
 % % choose the method to solve the acceleration 
 % METHOD = 4;
@@ -86,7 +87,7 @@ LAMBDA4 = 0.01;
 % aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
 [aVehPolyRealRootsCell, aVehPolyRealRoots] = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, FitPara);
 % aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
-aPreInit = (vPreList(2) - vPreList(1))/TS_PRE;
+aPreInit = (vPreList(2) - vPreList(1))/TS_PRE; 
 % aVehPolyRoots = roots(aVehPoly);
 % aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
 [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPreInit));
@@ -110,8 +111,8 @@ DT = 0.5;
 SIMU_STEPS = 500;
 
 % constraints
-AVEH_MAX = 5;
-AVEH_MIN = -5;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
 % AVEH_MAX = inf;
 % AVEH_MIN = -inf;
 
@@ -142,6 +143,7 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
+aVehRoots = cell(SIMU_STEPS, 2);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
@@ -160,11 +162,12 @@ for i = 1:SIMU_STEPS
         debug = 1;
     end
     [aVehPolyRealRootsCell, aVehPolyRealRoots]  = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
-
+    aVehRoots{i, 1} = aVehPolyRealRoots;
 %     aVehPolyRealRoots = cell2mat(aVehPolyRealRootsCell);
     % METHOD: find correct aVeh through Hamiltonian
-    aVehPolyRealRoots = aVehPolyRealRoots(...
-        aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
+%     aVehPolyRealRoots = aVehPolyRealRoots(...
+%         aVehPolyRealRoots >= AVEH_MIN & aVehPolyRealRoots <= AVEH_MAX);
+    aVehPolyRealRoots = max(min(aVehPolyRealRoots, AVEH_MAX), AVEH_MIN);
     ROOTS_NUM = numel(aVehPolyRealRoots);
     if ROOTS_NUM < 1
         debug = 1;
@@ -203,7 +206,7 @@ for i = 1:SIMU_STEPS
     % simple saturation
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
-    
+    aVehRoots{i, 2} = aVeh(i+1);
     if pBatt(i+1) < -40000
         debug = 1;
     end
@@ -239,10 +242,10 @@ SimuResult.tVeh = tVeh;
 SimuResult.hamilTraj = hamilTraj;
 
 %%
-figure;
-plot(timeSimu, [sign(vPre-vVeh) sign(lambda1)])
-legend('sign vel', 'sign \lambda_1')
-ylim([-1.2, 1.2])
+% figure;
+% plot(timeSimu, [sign(vPre-vVeh) sign(lambda1)])
+% legend('sign vel', 'sign \lambda_1')
+% ylim([-1.2, 1.2])
 %% plotting
 
 SUB_ALIGN = '24';

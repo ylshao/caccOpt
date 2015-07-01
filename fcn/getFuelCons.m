@@ -1,7 +1,7 @@
 function fuelCons = getFuelCons(v, a, pBatt, FitPara)
 
-    PIECE_ONE_LIM = -0.268333333333333;
-    PIECE_TWO_LIM = 0.626111111111111;
+PIECE_ONE_LIM = -0.268333333333333;
+PIECE_TWO_LIM = 0.626111111111111;
 
 if a < PIECE_ONE_LIM
     aoFitFcn = FitPara(1).aoFitFcn;
@@ -14,4 +14,4 @@ elseif a > PIECE_TWO_LIM
     boFitFcn = FitPara(3).boFitFcn;
 end
 % fuel consumption handle
-fuelCons = aoFitFcn(v, a)*pBatt + boFitFcn(v, a);
+fuelCons = max(aoFitFcn(v, a)*pBatt + boFitFcn(v, a), 0);

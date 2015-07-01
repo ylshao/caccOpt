@@ -4,8 +4,8 @@ function [aVehPolyRealRootsCell, aVehRoots] = getAVehPoly(vVeh, lambda2, lambda3
     Q_BATT = 6.5*3600; % ampere*sec
     R_BATT = 0.003*6*28;  % ohm
     
-AVEH_MAX = 5;
-AVEH_MIN = -5;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
     PIECE_ONE_LIM = -0.268333333333333;
     PIECE_TWO_LIM = 0.626111111111111;
 
