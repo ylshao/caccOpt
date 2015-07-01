@@ -10,7 +10,7 @@ aVehMph = aVehList*R_TIRE/MPH_2_KMPH*3600/1000; % [rad/s^2]->[mph/s]
 % because the ao-mapping is sort of piecewise, only select a region of
 % acceleration for polynomial fitting. Otherwise need to have maybe 3
 % different piecewise polynomials
-selAccel = 1:145; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
+selAccel = 165:301; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
 aVehComfMph = aVehMph(selAccel); 
 aoComf = aoList(selAccel, :);
 boComf = boList(selAccel, :);
@@ -34,9 +34,9 @@ aoCoeff = coeffvalues(aoFitFcn);
 boCoeff = coeffvalues(boFitFcn);
 
 %% plot fuel consumption map
-pBatt = -20000;
+pBatt = 20000;
 
-selInd = 1:145; % acceleration -3m/s^2-3m/s^2
+selInd = 165:301; % acceleration -3m/s^2-3m/s^2
 [vVehPlot, aVehPlot] = meshgrid(vVehMph*MPH_2_KMPH*1000/3600, aVehMph(selInd)*MPH_2_KMPH*1000/3600); % 
 
 aoPlot = aoFitFcn(reshape(vVehPlot, [], 1), reshape(aVehPlot, [], 1));

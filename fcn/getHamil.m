@@ -10,5 +10,6 @@ stateTwo = lambda2*aVeh;
 stateThree = lambda3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBatt))/(2*R_BATT*Q_BATT);
 stateFour = lambda4*distFollowCstr(distFollow);
 
+fuelCons = max(fuelCons, 0);
 hamil = fuelCons + stateOne + stateTwo + stateThree + stateFour;
 hamilTraj = [fuelCons, stateOne, stateTwo, stateThree, stateFour, hamil];

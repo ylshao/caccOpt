@@ -49,7 +49,7 @@ aVehMph = aVehList*R_TIRE/MPH_2_KMPH*3600/1000; % [rad/s^2]->[mph/s]
 % because the ao-mapping is sort of piecewise, only select a region of
 % acceleration for polynomial fitting. Otherwise need to have maybe 3
 % different piecewise polynomials
-selAccel = 84:218; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
+selAccel = 121:181; % -3mph-3mph, %%%165:deSamp:end, 101:201, 145:163 121:181
 aVehComfMph = aVehMph(selAccel); 
 aoComf = aoList(selAccel, :);
 boComf = boList(selAccel, :);
@@ -135,12 +135,12 @@ lambda3 = sqrt(V_OC^2 - 4*R_BATT*pBattEst)*aoEst*Q_BATT;
 lambda2 = -pdAoAVehFcn(vVehEst, aVehEst)*pBattEst - pdBoAVehFcn(vVehEst, aVehEst);
 lambda1 = 0;
 fuelConsEst = fuelConsFcn(vVehEst, aVehEst, pBattEst);
-fprintf('lambda2 %8.15f, lambda3 %8.15f, fuelCons [g/s] %8.4f\n', ...
+fprintf('lambda2 %8.4f, lambda3 %8.4f, fuelCons [g/s] %8.4f\n', ...
     lambda2, lambda3, fuelConsEst)
 %% Estimate the shape of Hamiltonianwhos
 lambda1 = 0;
 lambda2 = -1.58845178761833;
-lambda3 = -227.036499568364;
+lambda3 = 
 
 vPre = vVehEst+2;
 vVehCur = vVehEst;
@@ -148,8 +148,8 @@ distFollowCur = distFollowEst;
 stateCur = [distFollowCur vVehCur 0.6]; % state [d, v, SOC]'
 
 % iteration for Hamiltonian calculation
-ASPAN_LEN = 10;
-PSPAN_LEN = 10;
+ASPAN_LEN = 100;
+PSPAN_LEN = 50;
 aSpan = linspace(min(aVehFit), max(aVehFit), ASPAN_LEN);
 
 hamilPlot = nan(ASPAN_LEN, PSPAN_LEN);

@@ -87,10 +87,10 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
-lambda1Init = 0;
-lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -227.036499568364;
-LAMBDA4 = 0;
+lambda1Init = -0.011;
+lambda2Init = -1.638834219643247; % bizarre lambda value to get smooth initial acceleration 
+LAMBDA3 = -214.803274441506520;
+LAMBDA4 = 0.01;
 
 % choose the method to solve the acceleration 
 METHOD = 4;
@@ -120,13 +120,13 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 1000;
+SIMU_STEPS = 100;
 
 % constraints
-% AVEH_MAX = 3;
-% AVEH_MIN = -3;
-AVEH_MAX = inf;
-AVEH_MIN = -inf;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
+% AVEH_MAX = inf;
+% AVEH_MIN = -inf;
 
 PBATT_MAX = V_OC^2/(4*R_BATT);
 PBATT_MIN = -40000;
@@ -155,6 +155,7 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
+aVehRoots = cell(SIMU_STEPS, 2);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
@@ -172,7 +173,9 @@ for i = 1:SIMU_STEPS
             
     aVehPoly = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, aoCoeff, boCoeff);
     aVehPolyRoots = roots(aVehPoly);
-    aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
+    aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots));
+    aVehRoots{i, 1} = aVehPolyRealRoots;
+    aVehPolyRealRoots = max(min(aVehPolyRealRoots, AVEH_MAX), AVEH_MIN);
     
     switch METHOD 
         case 1
@@ -203,6 +206,7 @@ for i = 1:SIMU_STEPS
                     stateThree = LAMBDA3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);
                     stateFour = LAMBDA4*distCstrFcn(distFollow(i+1));
                     
+                    fuelCons = max(fuelCons, 0);
                     hamilArray(iRoots) = fuelCons + stateOne + stateTwo + stateThree + stateFour;
                 end
                 [~, minAVehInd] = min(hamilArray);
@@ -212,11 +216,11 @@ for i = 1:SIMU_STEPS
     end
 
     
-    if METHOD == 4
-        if abs(hamilArray(minAVehInd)-hamilTraj(i+1, end)) > 1e-5
-            debug = 1;
-        end
-    end
+%     if METHOD == 4
+%         if abs(hamilArray(minAVehInd)-hamilTraj(i+1, end)) > 1e-5
+%             debug = 1;
+%         end
+%     end
     
     pBatt(i+1) = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVeh(i+1))*Q_BATT))^2);
 
@@ -231,6 +235,8 @@ for i = 1:SIMU_STEPS
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
     
+    aVehRoots{i, 2} = aVeh(i+1);
+    
     if pBatt(i+1) < -40000
         debug = 1;
     end
@@ -244,7 +250,10 @@ end
 toc;
 
 %% plotting
+% figure; 
+% plot()
 
+%%
 SUB_ALIGN = '24';
 ax = [];
 subNum = 1;

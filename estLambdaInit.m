@@ -1,4 +1,3 @@
-
 clear all
 % clc
 %% Engine Map
@@ -123,8 +122,8 @@ DT = 0.5;
 SIMU_STEPS = 100;
 
 % constraints
-AVEH_MAX = 1.34;
-AVEH_MIN = -1.34;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
 % AVEH_MAX = inf;
 % AVEH_MIN = -inf;
 
@@ -155,10 +154,11 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
-aVehRoots = cell(SIMU_STEPS, 1);
+ASPAN_LEN = 20;
+PSPAN_LEN = 20;
 % begin iteration 
 for i = 1:SIMU_STEPS
-%     vPre(i) = vPre(i);
+    i
 
     % calculate one step forward for the states
     distFollow(i+1) = distFollow(i) + DT*(vPre(i) - vVeh(i));
@@ -169,74 +169,57 @@ for i = 1:SIMU_STEPS
     lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-pdAoVVehFcn(vVeh(i), aVeh(i))*pBatt(i) - ...
                 pdBoVVehFcn(vVeh(i), aVeh(i)) + lambda1(i));
-    
-            
-    aVehPoly = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, aoCoeff, boCoeff);
-    aVehPolyRoots = roots(aVehPoly);
-    aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots));
-    aVehRoots = aVehPolyRealRoots
-    aVehPolyRealRoots = max(min(aVehPolyRealRoots, AVEH_MAX), AVEH_MIN);
-    
-    switch METHOD 
-        case 1
-            % METHOD 1: choose the smallest one here
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 2
-            % METHOD 2: choose the one that closest to last aVeh
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots - aVeh(i)));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 3
-            % METHOD 3: choose the one that closest to aPre
-            [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPre(i+1)));
-            aVeh(i+1) = aVehPolyRealRoots(minAVehInd);             
-        case 4
-            % METHOD 4: find correct aVeh through Hamiltonian
-            ROOTS_NUM = numel(aVehPolyRealRoots);
-            if ROOTS_NUM == 1
-                aVeh(i+1) = aVehPolyRealRoots; 
-            else
-                hamilArray = nan(ROOTS_NUM, 1);
-                for iRoots = 1:ROOTS_NUM
-                    aVehCur = aVehPolyRealRoots(iRoots);
-                    pBattCur = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVehCur)*Q_BATT))^2);
-                    fuelCons = fuelConsFcn(vVeh(i+1), aVehCur, pBattCur);
-                    stateOne = lambda1(i+1)*(vPre(i+1)-vVeh(i+1));
-                    stateTwo = lambda2(i+1)*aVehCur;
-                    stateThree = LAMBDA3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);
-                    stateFour = LAMBDA4*distCstrFcn(distFollow(i+1));
-                    
-                    hamilArray(iRoots) = fuelCons + stateOne + stateTwo + stateThree + stateFour;
-                end
-                [~, minAVehInd] = min(hamilArray);
-                aVeh(i+1) = aVehPolyRealRoots(minAVehInd); 
-            end
-            
+
+    %%    
+    aSpan = linspace(AVEH_MIN, AVEH_MAX, ASPAN_LEN);
+
+    hamilPlot = nan(ASPAN_LEN, PSPAN_LEN);
+    aPlot = nan(ASPAN_LEN, PSPAN_LEN);
+    pBattPlot = nan(ASPAN_LEN, PSPAN_LEN);
+
+    for iAVeh = 1:numel(aSpan)
+        aVehCur = aSpan(iAVeh);
+        wVehCur = vVeh(i+1)/R_TIRE;
+        wDotVehCur = aVehCur/R_TIRE;
+        tVehCur = tVehFcn(vVeh(i+1), aVehCur);
+
+        pBattMax = min(getPbatt(tEngMap(1), wEngMap(1), tVehCur, wVehCur)...
+            , V_OC^2/(4*R_BATT));
+        pBattMin = getPbatt(tEngMap(end), wEngMap(end), tVehCur, wVehCur);
+
+        pBattSpan = linspace(pBattMin, pBattMax, PSPAN_LEN);
+        for iPBatt = 1:numel(pBattSpan)
+            pBattCur = pBattSpan(iPBatt);
+
+            % calc Hamiltonian part by part to compare the value of each part
+            fuelConsCur = fuelConsFcn(vVeh(i+1), aVehCur, pBattCur);
+            stateOne = lambda1(i+1)*(vPre(i+1)-vVeh(i+1));
+            stateTwo = lambda2(i+1)*aVehCur;
+            stateThree = LAMBDA3*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBattCur))/(2*R_BATT*Q_BATT);
+            stateFour = LAMBDA4*distCstrFcn(distFollow(i+1));
+                     
+            % save the current hamiltonian and control inputs
+            hamilPlot(iAVeh, iPBatt) = fuelConsCur + stateOne + stateTwo + stateThree + stateFour;
+            aPlot(iAVeh, iPBatt) = aVehCur;
+            pBattPlot(iAVeh, iPBatt) = pBattCur;
+        end
     end
 
-    
-%     if METHOD == 4
-%         if abs(hamilArray(minAVehInd)-hamilTraj(i+1, end)) > 1e-5
-%             debug = 1;
-%         end
-%     end
-    
-    pBatt(i+1) = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVeh(i+1))*Q_BATT))^2);
+    % get the minimum hamiltonian for current states
+    [~, hamilMinInd] = min(hamilPlot);
+    [~, hamilMinCol] = min(min(hamilPlot));
+    hamilMinRow = hamilMinInd(hamilMinCol);
+    hamilMinVal = hamilPlot(hamilMinRow, hamilMinCol);
 
+    % get the optimal control for current states
+    aVeh(i+1) = aPlot(hamilMinRow, hamilMinCol);
+    pBatt(i+1) = pBattPlot(hamilMinRow, hamilMinCol);
+    
+    %%    
     % get the max and min pBatt values allowed
     wVeh(i+1) = vVeh(i+1)/R_TIRE;
     wDotVeh(i+1) = aVeh(i+1)/R_TIRE;
     tVeh(i+1) = tVehFcn(vVeh(i+1), aVeh(i+1));
-    pBattCurMax = max(min(getPbatt(tEngMap(1), wEngMap(1), tVeh(i+1), wVeh(i+1)), PBATT_MAX), PBATT_MIN);
-    pBattCurMin = min(max(getPbatt(tEngMap(end), wEngMap(end), tVeh(i+1), wVeh(i+1)), PBATT_MIN), PBATT_MAX);
-    
-    % simple saturation
-    aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
-    pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
-    
-    if pBatt(i+1) < -40000
-        debug = 1;
-    end
     
     % get each part of the hamiltonian trajectory
     [~, hamilTraj(i+1, :)] = ...
