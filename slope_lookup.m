@@ -86,7 +86,7 @@ kcom = [1 1 -1 -1;1 -1 1 -1];
 % % Sample Wv from 0 - 60 mph 
 Wv = linspace(0,60,5)*1.61/3.6/Rtire;
 % Sample Av from -15 - 15 mph/s 
-Av = linspace(-10,10,10)*1.61/3.6/Rtire;
+Av = linspace(-15,15,10)*1.61/3.6/Rtire;
 
 % % Sample Wv from 0 - 60 mph 
 % Wv = linspace(0,60,601)*1.61/3.6/Rtire;
@@ -298,7 +298,7 @@ for m = 1:length(Av);
         % ==========================================
         
         % Combine
-        fprintf('wVeh %d, wDotVeh %d, pBattMin %8.4f, pBattMax %8.4f, tReq %8.4f\n', i, m, Pbatlo, Pbathi, Treq)
+        fprintf('wVeh %8.4f, wDotVeh %8.4f, pBattMin %8.4f, pBattMax %8.4f, tReq %8.4f\n', Wreq, Accreq, Pbatlo, Pbathi, Treq)
 
         % Pbat_lim = [shutoff, lo]
         Pbat_lim(i,:) = [Pbat_shutoff Pbatlo];
@@ -496,8 +496,8 @@ AvMfig = Av;
 
 % Compare plots (plot one on top of the other)
 figure; 
-% mesh(WvMfig/1.61*3.6*Rtire,AvMfig/1.61*3.6*Rtire,aoMfig*1e3)
-surf(WvMfig/1.61*3.6*Rtire,wDotVehPlot/1.61*3.6*Rtire,aoMfig*1e3)
+mesh(WvMfig/1.61*3.6*Rtire,AvMfig/1.61*3.6*Rtire,boMfig*1e3)
+% surf(WvMfig/1.61*3.6*Rtire,wDotVehPlot/1.61*3.6*Rtire,aoMfig*1e3)
 datax = WvMfig/1.61*3.6*Rtire;
 datay = AvMfig/1.61*3.6*Rtire;
 dataz = boMfig*1e3;

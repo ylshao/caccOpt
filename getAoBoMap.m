@@ -1,4 +1,4 @@
-clear all
+% clear all
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Gasoline engine related map/model %%%%
@@ -185,14 +185,14 @@ fprintf('---------------------------------------------------------\n')
 wVehPlot = nan(numel(wDotVehList), numel(wVehList));
 wDotVehPlot = nan(numel(wDotVehList), numel(wVehList));
 for iW = 1:numel(wVehList)   
-    wDotVehMaxCur = interp1(wVehSpan, wDotVehMaxSpan, wVehList(iW));
-    wDotVehList = linspace(-WDOT_VEH_LIM, wDotVehMaxCur, WDOT_LIST_LEN);
+%     wDotVehMaxCur = interp1(wVehSpan, wDotVehMaxSpan, wVehList(iW));
+%     wDotVehList = linspace(-WDOT_VEH_LIM, wDotVehMaxCur, WDOT_LIST_LEN);
     for iWDot = 1:numel(wDotVehList)
 
         % get current wVeh and current wDotVeh
         wVeh = wVehList(iW);
         wDotVeh = wDotVehList(iWDot);
-        
+                
         wVehPlot(iWDot, iW) = wVeh;
         wDotVehPlot(iWDot, iW) = wDotVeh;
         
@@ -213,8 +213,8 @@ for iW = 1:numel(wVehList)
 %         end
         
                 % display current wVeh and current wDotVeh
-        fprintf('wVeh %d, wDotVeh %d, pBattMin %8.4f, pBattMax %8.4f, tReq %8.4f\n',...
-            iW, iWDot, pBattCurMin, pBattCurMax, tVeh)
+        fprintf('wVeh %8.4f, wDotVeh %8.4f, pBattMin %8.4f, pBattMax %8.4f, tReq %8.4f\n',...
+            wVeh, wDotVeh, pBattCurMin, pBattCurMax, tVeh)
         pBattList = linspace(pBattCurMin, pBattCurMax, 30)';
         
         fuelConsEachPower = nan(numel(pBattList), 1);

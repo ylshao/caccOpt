@@ -1,4 +1,4 @@
-clear all
+clear
 %%
 load('lookup_aobo_150623')
 
@@ -75,6 +75,12 @@ boCoeff = coeffvalues(boFitFcn);
 %% Create fcn handles with vVeh, aVeh as arguments
 mapData = 'lookup_aobo_150623';
 FitPara = fitAoBoFull(mapData);
+
+LIM_ONE = -0.268333333333333;
+LIM_TWO = 0.626111111111111;
+aoFitFullFcn = @(v, a) FitPara(1).aoFitFcn(v, a).*heaviside(LIM_ONE - a) ...
+    + FitPara(2).aoFitFcn(v, a).*heaviside(a - LIM_ONE).*heaviside(LIM_TWO - a) ...
+    + FitPara(3).aoFitFcn(v, a).*heaviside(a - LIM_TWO);
 % partial derivative of ao w.r.t. aVeh
 pdAoAVehFcn = @(v, a) aoCoeff(3) + aoCoeff(5)*v + 2*aoCoeff(6)*a + ...
     aoCoeff(7)*v.^2 + 2*aoCoeff(8)*v.*a + 3*aoCoeff(9)*a.^2 + ...
@@ -105,7 +111,7 @@ pdDistFollowCstr = @(dist) 2*(dist - DIST_MIN).*heaviside(DIST_MIN - dist) - ...
 % estimating the optimal control to estimate the range of costates
 vVehEst = 16.1018937388889; % [m/s]
 distFollowEst = 50; % [m]
-aVehEst = 0.3; %0.7454; % [m/s^2]
+aVehEst = 0.8; %0.7454; % [m/s^2]
 pBattEst = 5000; %-16414.0418; % [Watts]
 
 % aVehEst = aVehOpt; %0.7454; % [m/s^2]
@@ -130,11 +136,11 @@ elseif pBattEst > pBattMax
     pBattEst = pBattMax;
     fprintf('pBatt too large, range [%8.4f, %8.4f]\n', pBattMin, pBattMax)
 end
-[aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVehEst, FitPara);
-aoEst = aoFitFcn(vVehEst, aVehEst);
-boEst = boFitFcn(vVehEst, aVehEst);
+% [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVehEst, FitPara);
+% aoEst = aoFitFcn(vVehEst, aVehEst);
+% boEst = boFitFcn(vVehEst, aVehEst);
 
-lambda3 = sqrt(V_OC^2 - 4*R_BATT*pBattEst)*aoEst*Q_BATT;
+lambda3 = sqrt(V_OC^2 - 4*R_BATT*pBattEst)*aoFitFullFcn(vVehEst, aVehEst)*Q_BATT;
 lambda2 = -getPdAoAVeh(vVehEst, aVehEst, FitPara)*pBattEst - getPdBoAVeh(vVehEst, aVehEst, FitPara);
 lambda1 = 0;
 fuelConsEst = getFuelCons(vVehEst, aVehEst, pBattEst, FitPara);

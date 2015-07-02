@@ -21,15 +21,18 @@ boListFit(boListFit < MIN_BO) = MIN_BO;
 x = WvMfig/1.61*3.6*Rtire;
 y = AvMfig/1.61*3.6*Rtire;
 z = boListFit; 
-
+z = aoList;
 %%
 deSamp = 5;
 % ind = floor(linspace(1, 145, 30));
 % ind = floor(linspace(165, 301, 30));
 ind = 145:165;
+% ind = 165:301;
 xxx = x(1:deSamp:end);
 yyy = y(ind); % 165:deSamp:end, 101:201, 145:163 121:181
 zzz = z(ind, 1:deSamp:end);
+
+zzzz = zzz(1, :);
 %%
 figure
 [yy, xx] = meshgrid(x, y);   
