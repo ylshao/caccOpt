@@ -1,4 +1,4 @@
-function [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(vVeh, lambda1, lambda2, lambda3, FitPara)
+function [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(distHist, vVeh, aVehHist, lambda1, lambda2, lambda3, FitPara)
     
     V_OC = 201.6; %volt
     Q_BATT = 6.5*3600; % ampere*sec
@@ -68,24 +68,31 @@ function [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(vVeh, lam
         
         switch i
             case 1
-            aVehPolyValidRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots < PIECE_ONE_LIM);
+                if abs(partOne) < 1e-10 & abs(partTwo) < 1e-10 & abs(sum(aVehPoly)) < 1e-10
+                    aVehPolyRealRoots = aVehHist(2) + sign(aVehHist(2)-aVehHist(1))*0.1;
+                end
+                aVehPolyValidRoots = ...
+                    aVehPolyRealRoots(aVehPolyRealRoots < PIECE_ONE_LIM) & ...
+                    aVehPolyRealRoots(aVehPolyRealRoots > 10);
             case 2
-            aVehPolyValidRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots >= PIECE_ONE_LIM & ...
-                aVehPolyRealRoots <= PIECE_TWO_LIM);    
+                aVehPolyValidRoots = ...
+                    aVehPolyRealRoots(aVehPolyRealRoots >= PIECE_ONE_LIM & ...
+                    aVehPolyRealRoots <= PIECE_TWO_LIM);    
             case 3
                 if abs(partOne) < 1e-10 & abs(partTwo) < 1e-10 & abs(sum(aVehPoly)) < 1e-10
+                    aoPoly = aoCoeff(8)*vVeh.^4 + aoCoeff(6)*vVeh.^3 +...
+                        aoCoeff(4)*vVeh.^2 + aoCoeff(2)*vVeh + aoCoeff(1);
+                    
                     pdAoVVehPoly = aoCoeff(2) + 2*aoCoeff(4)*vVeh + ...
                         3*aoCoeff(6)*vVeh.^2 + + 4*aoCoeff(8)*vVeh.^3;
-                    pdBoVVehPoly = [boCoeff(9), 2*boCoeff(8)*vVeh + boCoeff(5), ...
+                    pdBoVVehPoly = [2*boCoeff(8)*vVeh + boCoeff(5), ...
                         boCoeff(2) + 2*boCoeff(4)*vVeh + 3*boCoeff(7)*vVeh.^2];
                     
-                    subpartOne = -V_OC^2/(4*R_BATT)*conv(pdAoVVehPoly, 330);
+                    subpartOne = -V_OC^2/(4*R_BATT)*conv(pdAoVVehPoly, conv(aoPoly, aoPoly));
                     subpartTwo = lambda3^2/(4*R_BATT*Q_BATT^2)*pdAoVVehPoly;
                     subpartThree = -conv(pdBoVVehPoly, conv(aoPoly, aoPoly));
                     subpartFour = lambda1*conv(aoPoly, aoPoly);
-                    subpartFive = (boCoeff(5) + 2*boCoeff(8)*vVeh)*conv([1, 0], conv(aoPoly, aoPoly));
+                    subpartFive = conv([boCoeff(5) + 2*boCoeff(8)*vVeh, 0], conv(aoPoly, aoPoly));
                     
                     SUB_ORDER = max(numel(subpartOne), max(numel(subpartTwo), ...
                         max(numel(subpartThree), max(numel(subpartFour), numel(subpartFive)))));
@@ -95,10 +102,31 @@ function [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(vVeh, lam
                             [zeros(1, SUB_ORDER-numel(subpartThree)), subpartThree] + ...
                             [zeros(1, SUB_ORDER-numel(subpartFour)), subpartFour] + ...
                             [zeros(1, SUB_ORDER-numel(subpartFive)), subpartFive];
-
+                        
+% %                         % syms lam3
+% % lam3 = lambda3;
+% % aoVal = aoCoeff(8)*vVeh.^4 + aoCoeff(6)*vVeh.^3 + aoCoeff(4)*vVeh.^2 + ...
+% %     aoCoeff(2)*vVeh + aoCoeff(1);
+% % coOne = (2*aoCoeff(4) + 6*aoCoeff(6)*vVeh + 12*aoCoeff(8)*vVeh.^2)*...
+% %     (-V_OC^2/(4*R_BATT)+lam3^2/(4*R_BATT*Q_BATT^2*aoVal^2));
+% % coTwo = (aoCoeff(2) + 2*aoCoeff(4)*vVeh + 3*aoCoeff(6)*vVeh.^2 + ...
+% %     4*aoCoeff(8)*vVeh.^3)^2*(-lam3^2/(2*R_BATT*Q_BATT^2*aoVal^3));
+% % coThree = -(2*boCoeff(4) + 6*boCoeff(7)*vVeh);
+% % 
+% % coSum = coOne + coTwo + coThree
+% % 
+% % % solve(coSum == 0, lam3)
+                        
+                        
+                    if aVehHist(1) < PIECE_TWO_LIM  & aVehHist(2) < PIECE_TWO_LIM  
+                        aVehPolyRealRoots = PIECE_TWO_LIM + 0.1 + sign(aVehHist(2)-aVehHist(1))*0.05;
+                    else
+                        aVehPolyRealRoots = aVehHist(2) + sign(aVehHist(2)-aVehHist(1))*0.1;
+                    end
+                    fprintf('Solve accel poly stucked\n')
                 end
-            aVehPolyValidRoots = ...
-                aVehPolyRealRoots(aVehPolyRealRoots > PIECE_TWO_LIM);
+                aVehPolyValidRoots = ...
+                    aVehPolyRealRoots(aVehPolyRealRoots > PIECE_TWO_LIM);
         end
         if ~isempty(aVehPolyRealRoots)
             aVehPolyRealRootsCell{i} = aVehPolyRealRoots;
@@ -108,3 +136,16 @@ function [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(vVeh, lam
 %             aVehRoots = [aVehRoots aVehPolyValidRoots];
         end
     end
+    
+aVehPolyValidRoots = cell2mat(aVehPolyValidRootsCell);
+if numel(aVehPolyValidRoots) < 1
+%     if aVehHist(1) < PIECE_TWO_LIM  & aVehHist(2) < PIECE_TWO_LIM  
+%         aVehPolyValidRootsCell{3} = PIECE_TWO_LIM + 0.1 + sign(distHist(2)-distHist(1))*0.05;
+%     else
+        aVehPolyValidRootsCell{3} = aVehHist(2) + sign(distHist(2)-distHist(1))*0.1;
+        if aVehPolyValidRootsCell{3} < PIECE_TWO_LIM
+            aVehPolyValidRootsCell{3} = [];
+        end
+%         if aVehPolyValidRootsCell{}
+%     end
+end

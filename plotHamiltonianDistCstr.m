@@ -111,7 +111,7 @@ pdDistFollowCstr = @(dist) 2*(dist - DIST_MIN).*heaviside(DIST_MIN - dist) - ...
 % estimating the optimal control to estimate the range of costates
 vVehEst = 16.1018937388889; % [m/s]
 distFollowEst = 50; % [m]
-aVehEst = 0.8; %0.7454; % [m/s^2]
+aVehEst = 0.3; %0.7454; % [m/s^2]
 pBattEst = 5000; %-16414.0418; % [Watts]
 
 % aVehEst = aVehOpt; %0.7454; % [m/s^2]
@@ -136,7 +136,7 @@ elseif pBattEst > pBattMax
     pBattEst = pBattMax;
     fprintf('pBatt too large, range [%8.4f, %8.4f]\n', pBattMin, pBattMax)
 end
-% [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = getCurAoBoMap(aVehEst, FitPara);
+% [aoFitFcn, boFitFcn, aoCoeff, boCoeff] = g$etCurAoBoMap(aVehEst, FitPara);
 % aoEst = aoFitFcn(vVehEst, aVehEst);
 % boEst = boFitFcn(vVehEst, aVehEst);
 

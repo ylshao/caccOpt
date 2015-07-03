@@ -111,21 +111,23 @@ distFollowInit = 50;
 vVehInit = max(vPreInit, 0);
 socInit = 0.6;
 statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
-
+aVehInitEst = [0.3; 0.31];
+distInitHist = [50; 50.1];
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
-lambda1Init = 0;
-lambda2Init = -1.856627871053850; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -258.146205965292610;
-LAMBDA4 = 0;
-
+lambda1Init = -0.0298857776485204;
+% lambda2Init = -1.856627871053850; % bizarre lambda value to get smooth initial acceleration 
+% LAMBDA3 = -258.146205965292610;
+LAMBDA4 = 0.01;
+lambda2Init = -1.732237361984099;
+LAMBDA3 =  -270.457787217571930;
 % % choose the method to solve the acceleration 
 % METHOD = 4;
     
 %% get the initial acceleration
 % get polynomial for solving aVeh
 % aVehPoly = getAVehPoly(vVehInit, lambda2Init, LAMBDA3, aoCoeff, boCoeff);
-[aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(vVehInit, lambda1Init, lambda2Init, LAMBDA3, FitPara);
+[aVehPolyValidRootsCell, aVehPolyRealRootsCell] = getAVehPoly(distInitHist, vVehInit, aVehInitEst, lambda1Init, lambda2Init, LAMBDA3, FitPara);
 aVehPolyValidRoots = cell2mat(aVehPolyValidRootsCell);
 aPreInit = (vPreList(2) - vPreList(1))/TS_PRE; 
 
@@ -146,7 +148,7 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 500;
+SIMU_STEPS = 100;
 
 % constraints
 AVEH_MAX = 3;
@@ -181,18 +183,18 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
-aVehRootsTraj = cell(SIMU_STEPS, 2);
+aVehRootsTraj = cell(SIMU_STEPS, 4);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
-
+    fprintf('simu num %d\n', i)
     % calculate one step forward for the states
     distFollow(i+1) = distFollow(i) + DT*(vPre(i) - vVeh(i));
     vVeh(i+1) = vVeh(i) + DT*aVeh(i);
     soc(i+1) = soc(i) + DT*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBatt(i)))/(2*R_BATT*Q_BATT);
     
     % calculate one step forward for the costates
-    lambda1(i+1) = lambda1(i) + DT*(-LAMBDA4*pdDistCstrFcn(distFollow(i)));
+    lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-getPdAoVVeh(vVeh(i), aVeh(i), FitPara)*pBatt(i) - ...
                 getPdBoVVeh(vVeh(i), aVeh(i), FitPara) + lambda1(i));
 %     i
@@ -200,15 +202,22 @@ for i = 1:SIMU_STEPS
         debug = 1;
     end
     
+    if i == 1
+        aVehHist = [aVeh(i) - 0.1; aVeh(i)];
+        distHist = [distFollow(i); distFollow(i+1)];
+    else
+        aVehHist = [aVeh(i-1); aVeh(i)];
+        distHist = [distFollow(i); distFollow(i+1)];
+    end
     [aVehPolyValidRootsCell, aVehPolyRealRootsCell] = ...
-        getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, FitPara);
-    aVehRootsTraj{i, 1} = cell2mat(aVehPolyRealRootsCell);
+        getAVehPoly(distHist, vVeh(i+1), aVehHist, lambda1(i+1), lambda2(i+1), LAMBDA3, FitPara);
     aVehPolyValidRoots = cell2mat(aVehPolyValidRootsCell);
     aVehPolyValidRoots = max(min(aVehPolyValidRoots, AVEH_MAX), AVEH_MIN);
     ROOTS_NUM = numel(aVehPolyValidRoots);
     if ROOTS_NUM < 1
         debug = 1;
-        aVeh(i+1) = aVeh(i);
+        fprintf('No Accel Sol\n')
+        aVeh(i+1) = aVeh(i) + sign(distHist(2)-distHist(1))*0.1;
     elseif ROOTS_NUM == 1
         aVeh(i+1) = aVehPolyValidRoots; 
     else
@@ -238,7 +247,14 @@ for i = 1:SIMU_STEPS
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
     
-    aVehRootsTraj{i, 2} = aVeh(i+1);
+    % save roots history trajectory
+    aVehTrajCol = 1;
+    aVehRootsTraj{i, aVehTrajCol} = timeSimu(i); aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{1}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{2}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{3}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVeh(i+1); aVehTrajCol = aVehTrajCol + 1;
+    
     if pBatt(i+1) < -40000
         debug = 1;
     end
@@ -249,6 +265,8 @@ for i = 1:SIMU_STEPS
     vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), distCstrFcn, fuelConsFullFcn);
 
 end
+aVehRootsTraj = [{'time [sec]'}, {'piece 1'}, {'piece 2'}, {'piece 3'}, {'final sel'};...
+    aVehRootsTraj];
 toc;
 
 %% Save results as a struct
