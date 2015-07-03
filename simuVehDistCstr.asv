@@ -57,37 +57,42 @@ pdAoVVehFcn = @(v, a) aoCoeff(2) + 2*aoCoeff(4)*v + aoCoeff(5)*a + ...
     aoCoeff(11) * a.^3; 
 % partial derivative of bo w.r.t. vVeh
 pdBoVVehFcn = @(v, a) boCoeff(2) + 2*boCoeff(4)*v + boCoeff(5)*a;
+
 % vehicle request torque handle
 tVehFcn = @(v, a)(F_TIRE*M_VEH*g*cos(phi) + ...
     0.5*ROU*C_D*A_TIRE*R_TIRE^2*v/R_TIRE^2 + M_VEH*a)*R_TIRE;
 % fuel consumption handle
 fuelConsFcn = @(v, a, pBatt) aoFitFcn(v, a)*pBatt + boFitFcn(v, a);
-% augmented state da' for distance constraints  
+
+% augmented state 'da' for distance constraints  
 distCstrFcn = @(dist) (dist - DIST_MIN).^2.*heaviside(DIST_MIN - dist) + ...
     (DIST_MAX - dist).^2.*heaviside(dist - DIST_MAX);
-% derivative
-distCstrDotFcn = @(dist) 2*(dist - DIST_MIN).*heaviside(DIST_MIN - dist) - ...
+% derivative of 'da' w.r.t. d
+pdDistCstrFcn = @(dist) 2*(dist - DIST_MIN).*heaviside(DIST_MIN - dist) - ...
     2*(DIST_MAX - dist).*heaviside(dist - DIST_MAX);
 
-
-%% Get preceding vehicle speed
+%% load preceding vehicle speed
 vPreList = load('vehspeedact.txt');
 vPreList = vPreList*MPH_2_KMPH*1000/3600; % [m/s]
 TS_PRE = 0.1;
 timeList = 0:TS_PRE:(numel(vPreList)-1)*TS_PRE;
 
 %% Define the initial states and costates
-% initial conditions
+% initial states
 vPreInit = vPreList(1);
 distFollowInit = 100;
 vVehInit = max(vPreInit, 0);
-statesInit = [distFollowInit, vVehInit, 0.6]'; % [d, v, SOC]
-socInit = statesInit(3);
-lambda1Init = -0.011 ;
+socInit = 0.6;
+statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
+
+% initial costates
+% Note: A uppercase costate name implies that the costate is constant
+lambda1Init = 0;
 lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
-LAMBDA3 = -227.036499568364; 
+LAMBDA3 = -227.036499568364;
 LAMBDA4 = 0;
 
+% choose the method to solve the acceleration 
 METHOD = 4;
     
     
@@ -100,7 +105,7 @@ aVehPolyRoots = roots(aVehPoly);
 aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
 [~, minAVehInd] = min(abs(aVehPolyRealRoots - aPreInit));
 aVehInit = aVehPolyRealRoots(minAVehInd); % choose the smallest one here
-pBattInit = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFit(vVehInit, aVehInit)*Q_BATT))^2);
+pBattInit = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVehInit, aVehInit)*Q_BATT))^2);
 fprintf('aVehInit %8.4f, pBattInit %8.4f\n', aVehInit, pBattInit)
 
 wVehInit = vVehInit/R_TIRE;
@@ -116,6 +121,7 @@ tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
 SIMU_STEPS = 1000;
+
 % constraints
 % AVEH_MAX = 3;
 % AVEH_MIN = -3;
@@ -132,31 +138,39 @@ distPre = cumsum(vPre*DT);
 aPre = [nan; diff(vPre)/DT];
 
 % initialize states store arrays
+% states
 distFollow = [distFollowInit; nan(SIMU_STEPS, 1)];
 vVeh = [vVehInit; nan(SIMU_STEPS, 1)];
 soc = [socInit; nan(SIMU_STEPS, 1)];
-lambda2 = [lambda2Init; nan(SIMU_STEPS, 1)];
+% costates
 lambda1 = [lambda1Init; nan(SIMU_STEPS, 1)];
+lambda2 = [lambda2Init; nan(SIMU_STEPS, 1)];
+% inputs
 aVeh = [aVehInit; nan(SIMU_STEPS, 1)];
 pBatt = [pBattInit; nan(SIMU_STEPS, 1)];
+% vehicle states
 wVeh = [wVehInit; nan(SIMU_STEPS, 1)];
 wDotVeh = [wDotVehInit; nan(SIMU_STEPS, 1)];
 tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
+% hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
+
+    % calculate one step forward for the states
     distFollow(i+1) = distFollow(i) + DT*(vPre(i) - vVeh(i));
     vVeh(i+1) = vVeh(i) + DT*aVeh(i);
     soc(i+1) = soc(i) + DT*(-V_OC+sqrt(V_OC^2-4*R_BATT*pBatt(i)))/(2*R_BATT*Q_BATT);
-    lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*distCstrDotFcn(distFollow(i)));
+    
+    % calculate one step forward for the costates
+    lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-pdAoVVehFcn(vVeh(i), aVeh(i))*pBatt(i) - ...
                 pdBoVVehFcn(vVeh(i), aVeh(i)) + lambda1(i));
+    
             
     aVehPoly = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, aoCoeff, boCoeff);
-
-    % get the initial acceleration
     aVehPolyRoots = roots(aVehPoly);
     aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
     
@@ -182,7 +196,7 @@ for i = 1:SIMU_STEPS
                 hamilArray = nan(ROOTS_NUM, 1);
                 for iRoots = 1:ROOTS_NUM
                     aVehCur = aVehPolyRealRoots(iRoots);
-                    pBattCur = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFit(vVeh(i+1), aVehCur)*Q_BATT))^2);
+                    pBattCur = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVehCur)*Q_BATT))^2);
                     fuelCons = fuelConsFcn(vVeh(i+1), aVehCur, pBattCur);
                     stateOne = lambda1(i+1)*(vPre(i+1)-vVeh(i+1));
                     stateTwo = lambda2(i+1)*aVehCur;
@@ -204,13 +218,15 @@ for i = 1:SIMU_STEPS
         end
     end
     
-    pBatt(i+1) = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFit(vVeh(i+1), aVeh(i+1))*Q_BATT))^2);
+    pBatt(i+1) = 1/(4*R_BATT)*(V_OC^2 - (LAMBDA3/(aoFitFcn(vVeh(i+1), aVeh(i+1))*Q_BATT))^2);
 
+    % get the max and min pBatt values allowed
     wVeh(i+1) = vVeh(i+1)/R_TIRE;
     wDotVeh(i+1) = aVeh(i+1)/R_TIRE;
     tVeh(i+1) = tVehFcn(vVeh(i+1), aVeh(i+1));
     pBattCurMax = max(min(getPbatt(tEngMap(1), wEngMap(1), tVeh(i+1), wVeh(i+1)), PBATT_MAX), PBATT_MIN);
     pBattCurMin = min(max(getPbatt(tEngMap(end), wEngMap(end), tVeh(i+1), wVeh(i+1)), PBATT_MIN), PBATT_MAX);
+    
     % simple saturation
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
@@ -219,10 +235,17 @@ for i = 1:SIMU_STEPS
         debug = 1;
     end
     
+    % get each part of the hamiltonian trajectory
     [~, hamilTraj(i+1, :)] = ...
     getHamil(lambda1(i+1), lambda2(i+1), LAMBDA3, LAMBDA4, vPre(i+1), ...
     vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), fuelConsFcn, distCstrFcn);
 
+    aVehTrajCol = 1;
+    aVehRootsTraj{i, aVehTrajCol} = timeSimu(i); aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{1}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{2}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRootsCell{3}; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVeh(i+1); aVehTrajCol = aVehTrajCol + 1;
 end
 toc;
 

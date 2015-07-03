@@ -87,10 +87,10 @@ statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
 
 % initial costates
 % Note: A uppercase costate name implies that the costate is constant
-lambda1Init = 0;
+lambda1Init = -0.011;
 lambda2Init = -1.46297308598051; % bizarre lambda value to get smooth initial acceleration 
 LAMBDA3 = -227.036499568364;
-LAMBDA4 = 0;
+LAMBDA4 = 0.01;
 
 % choose the method to solve the acceleration 
 METHOD = 4;
@@ -120,7 +120,7 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 1000;
+SIMU_STEPS = 100;
 
 % constraints
 % AVEH_MAX = 3;
@@ -155,6 +155,7 @@ tVeh = [tVehInit; nan(SIMU_STEPS, 1)];
 % hamiltonian
 hamilTraj = [hamilTrajInit; nan(SIMU_STEPS, numel(hamilTrajInit))];
 
+aVehRootsTraj = cell(SIMU_STEPS, 3);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
@@ -240,7 +241,12 @@ for i = 1:SIMU_STEPS
     getHamil(lambda1(i+1), lambda2(i+1), LAMBDA3, LAMBDA4, vPre(i+1), ...
     vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), fuelConsFcn, distCstrFcn);
 
+    aVehTrajCol = 1;
+    aVehRootsTraj{i, aVehTrajCol} = timeSimu(i); aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVehPolyRealRoots; aVehTrajCol = aVehTrajCol + 1;
+    aVehRootsTraj{i, aVehTrajCol} = aVeh(i+1); aVehTrajCol = aVehTrajCol + 1;
 end
+aVehRootsTraj = [{'time [sec]'}, {'real roots'}, {'final sel'}; aVehRootsTraj];
 toc;
 
 %% plotting
