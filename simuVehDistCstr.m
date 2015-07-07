@@ -38,8 +38,8 @@ F_TIRE = 0.00475;
 g = 9.8; %N*m/sec
 phi = 0;
 
-DIST_MAX = 200;
-DIST_MIN = 20;
+DIST_MAX = 1000;
+DIST_MIN = 100;
 
 %% Get the polynomial fitting for ao, bo mappings
 mapData = 'lookup_aobo_150623';
@@ -80,7 +80,7 @@ timeList = 0:TS_PRE:(numel(vPreList)-1)*TS_PRE;
 %% Define the initial states and costates
 % initial states
 vPreInit = vPreList(1);
-distFollowInit = 100;
+distFollowInit = 500;
 vVehInit = max(vPreInit, 0);
 socInit = 0.6;
 statesInit = [distFollowInit, vVehInit, socInit]'; % [d, v, SOC]'
@@ -120,13 +120,13 @@ tVehInit = tVehFcn(vVehInit, aVehInit);
 tic;
 DT = 0.5;
 % SIMU_STEPS = floor(timeList(end)/DT);
-SIMU_STEPS = 100;
+SIMU_STEPS = 500;
 
 % constraints
-% AVEH_MAX = 3;
-% AVEH_MIN = -3;
-AVEH_MAX = inf;
-AVEH_MIN = -inf;
+AVEH_MAX = 3;
+AVEH_MIN = -3;
+% AVEH_MAX = inf;
+% AVEH_MIN = -inf;
 
 PBATT_MAX = V_OC^2/(4*R_BATT);
 PBATT_MIN = -40000;
@@ -159,7 +159,7 @@ aVehRootsTraj = cell(SIMU_STEPS, 3);
 % begin iteration 
 for i = 1:SIMU_STEPS
 %     vPre(i) = vPre(i);
-
+    i
     % calculate one step forward for the states
     distFollow(i+1) = distFollow(i) + DT*(vPre(i) - vVeh(i));
     vVeh(i+1) = vVeh(i) + DT*aVeh(i);
@@ -169,12 +169,20 @@ for i = 1:SIMU_STEPS
     lambda1(i+1) = lambda1(i) + DT*(LAMBDA4*pdDistCstrFcn(distFollow(i)));
     lambda2(i+1) = lambda2(i) + DT*(-pdAoVVehFcn(vVeh(i), aVeh(i))*pBatt(i) - ...
                 pdBoVVehFcn(vVeh(i), aVeh(i)) + lambda1(i));
-    
+       
+    if i == 61;
+        debug = 1;
+    end
             
     aVehPoly = getAVehPoly(vVeh(i+1), lambda2(i+1), LAMBDA3, aoCoeff, boCoeff);
     aVehPolyRoots = roots(aVehPoly);
     aVehPolyRealRoots = aVehPolyRoots(aVehPolyRoots == real(aVehPolyRoots))';
+    aVehPolyRealRootsFilt = aVehPolyRealRoots(aVehPolyRealRoots < 10 & ...
+        aVehPolyRealRoots > -10);
     
+    if numel(aVehPolyRealRootsFilt) >= 1
+        aVehPolyRealRoots = aVehPolyRealRootsFilt;
+    end
     switch METHOD 
         case 1
             % METHOD 1: choose the smallest one here
@@ -228,6 +236,11 @@ for i = 1:SIMU_STEPS
     pBattCurMax = max(min(getPbatt(tEngMap(1), wEngMap(1), tVeh(i+1), wVeh(i+1)), PBATT_MAX), PBATT_MIN);
     pBattCurMin = min(max(getPbatt(tEngMap(end), wEngMap(end), tVeh(i+1), wVeh(i+1)), PBATT_MIN), PBATT_MAX);
     
+    
+%     if abs(aVeh(i+1) - aVeh(i)) > 5 & sign(aVeh(i+1)*aVeh(i)) < 0
+    if i > 10 & sign(aVeh(i+1)*aVeh(i)) < 0 & sign(aVeh(i)*aVeh(i-1)) < 0
+        aVeh(i+1) = aVeh(i) + 0.1*sign(distFollow(i+1)-distFollow(i));
+    end
     % simple saturation
     aVeh(i+1) = min(max(aVeh(i+1), AVEH_MIN), AVEH_MAX);
     pBatt(i+1) = min(max(pBatt(i+1), pBattCurMin), pBattCurMax);
@@ -240,6 +253,8 @@ for i = 1:SIMU_STEPS
     [~, hamilTraj(i+1, :)] = ...
     getHamil(lambda1(i+1), lambda2(i+1), LAMBDA3, LAMBDA4, vPre(i+1), ...
     vVeh(i+1), aVeh(i+1), pBatt(i+1), distFollow(i+1), fuelConsFcn, distCstrFcn);
+    
+
 
     aVehTrajCol = 1;
     aVehRootsTraj{i, aVehTrajCol} = timeSimu(i); aVehTrajCol = aVehTrajCol + 1;
